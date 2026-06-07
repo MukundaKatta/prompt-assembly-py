@@ -136,23 +136,22 @@ class PromptAssembler:
     def get(self, name: str, default: str | None = None) -> str | None:
         """Return the content for *name*, or *default* if absent.
 
-        When called with no *default*, behaves like ``dict.__getitem__``:
-        raises :exc:`KeyError` if the section is missing.  When *default* is
-        provided (including ``None``), returns it silently.
+        A *default* of ``None`` (the implicit value) is treated as "no
+        default": the method behaves like ``dict.__getitem__`` and raises
+        :exc:`KeyError` when the section is missing.  Pass any non-``None``
+        *default* to get that value back silently instead.
 
         Args:
             name: Section name.
-            default: Fallback value.
+            default: Fallback value.  ``None`` means "raise on missing".
 
         Returns:
-            Section content or *default*.
+            Section content, or *default* when *name* is absent and
+            *default* is not ``None``.
 
         Raises:
-            KeyError: If *name* is absent and no *default* was given.
+            KeyError: If *name* is absent and *default* is ``None``.
         """
-        # Distinguish "no argument passed" from "None passed explicitly"
-        # by using a sentinel in the signature via *args trick instead.
-        # But to keep the API simple we allow None as an explicit default.
         if default is None and name not in self._sections:
             raise KeyError(name)
         return self._sections.get(name, default)  # type: ignore[return-value]
@@ -247,8 +246,16 @@ class PromptAssembler:
 
         Returns:
             New :class:`PromptAssembler` with the same sections and prefixes.
+
+        Raises:
+            TypeError: If *data* is not a mapping.
         """
+        if not isinstance(data, dict):
+            raise TypeError(f"data must be a dict, got {type(data).__name__!r}.")
         instance = cls(data.get("sections", {}))
+        # Only restore prefixes for sections that actually exist, so a
+        # malformed payload cannot leave orphan prefixes behind.
         for k, v in data.get("prefixes", {}).items():
-            instance._prefixes[k] = v
+            if k in instance._sections:
+                instance._prefixes[k] = v
         return instance

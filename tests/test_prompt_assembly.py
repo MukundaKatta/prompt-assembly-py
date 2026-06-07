@@ -179,6 +179,12 @@ def test_get_missing_with_none_default():
         pa.get("missing")
 
 
+def test_get_missing_with_falsy_default():
+    pa = PromptAssembler()
+    # A non-None falsy default is returned, not treated as "no default".
+    assert pa.get("missing", "") == ""
+
+
 # ---------------------------------------------------------------------------
 # section_names / contains / len / iter
 # ---------------------------------------------------------------------------
@@ -340,3 +346,15 @@ def test_roundtrip_render():
     rendered = pa.render()
     pa2 = PromptAssembler.from_dict(pa.to_dict())
     assert pa2.render() == rendered
+
+
+def test_from_dict_non_dict_raises():
+    with pytest.raises(TypeError, match="data must be a dict"):
+        PromptAssembler.from_dict(["not", "a", "dict"])  # type: ignore[arg-type]
+
+
+def test_from_dict_drops_orphan_prefixes():
+    # A prefix whose section is absent must not be retained.
+    pa = PromptAssembler.from_dict({"sections": {"a": "1"}, "prefixes": {"ghost": "## Ghost\n"}})
+    assert pa.get_prefix("ghost") == ""
+    assert pa.render() == "1"
